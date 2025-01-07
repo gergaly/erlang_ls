@@ -321,7 +321,12 @@ index_dir(Dir, Skip, SkipTag, Source) ->
     end,
     Filter = fun(Path) ->
         Ext = filename:extension(Path),
-        lists:member(Ext, [".erl", ".hrl", ".escript"])
+        Mem = lists:member(Ext, [".erl", ".hrl", ".escript"]),
+        Excl = lists:all(
+            fun(Elem) -> true =:= Elem end,
+            [string:find(Path, E) =:= nomatch || E <- els_config:get(excludes)]
+        ),
+        Mem andalso Excl
     end,
 
     {Time, {Succeeded, Skipped, Failed}} = timer:tc(

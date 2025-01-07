@@ -218,13 +218,21 @@ fold_files(F, Filter, Dir, Acc) ->
 %% @doc Resolve paths based on path specs
 %%
 %% Gets a list of path specs and returns the expanded list of paths.
-%% Path specs can contains glob expressions.
+%% Path specs can contains glob expressions. Results are filtered
+%% based on the 'excludes' configuration.
 -spec resolve_paths([[path()]], boolean()) -> [[path()]].
 resolve_paths(PathSpecs, Recursive) ->
-    lists:append([
+    Paths = lists:append([
         resolve_path(PathSpec, Recursive)
      || PathSpec <- PathSpecs
-    ]).
+    ]),
+    Filter = fun(Path) ->
+        lists:all(
+            fun(Elem) -> true =:= Elem end,
+            [string:find(Path, E) =:= nomatch || E <- els_config:get(excludes)]
+        )
+    end,
+    lists:filter(Filter, Paths).
 
 -spec halt(non_neg_integer()) -> ok.
 halt(ExitCode) ->
