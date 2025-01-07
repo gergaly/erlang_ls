@@ -144,6 +144,9 @@ do_initialize(RootUri, Capabilities, InitOptions, {ConfigPath, Config}) ->
     AppsDirs = maps:get("apps_dirs", Config, DefaultAppsDirs),
     IncludeDirs = maps:get("include_dirs", Config, DefaultIncludeDirs),
     ExcludeUnusedIncludes = maps:get("exclude_unused_includes", Config, []),
+    Excludes = maps:get("excludes", Config, []),
+    % els_utils:resolve_paths uses this, we need to set it before calling
+    ok = set(excludes, Excludes),
     Macros = maps:get("macros", Config, []),
     DialyzerPltPath = maps:get("plt_path", Config, undefined),
     OtpAppsExclude = maps:get(
