@@ -55,7 +55,8 @@
     enabled_diagnostics/0,
     make_diagnostic/4,
     make_diagnostic/5,
-    run_diagnostics/1
+    run_diagnostics/1,
+    is_initial_indexing_done/0
 ]).
 
 %%==============================================================================

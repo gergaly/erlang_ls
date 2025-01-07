@@ -76,8 +76,19 @@ dispatch(<<"$/", Method/binary>>, Params, request, State) ->
     },
     {error, Error, State};
 dispatch(Method, Params, MessageType, State) ->
-    Function = method_to_function_name(Method),
-    ?LOG_DEBUG("Dispatching request [method=~p] [params=~p]", [Method, Params]),
+    {Function, Class} = method_to_function_name(Method),
+    dispatch(Method, Params, MessageType, State, Function, Class).
+
+-spec dispatch(method_name(), params(), request_type(), els_server:state(), atom(), atom()) -> result().
+dispatch(Method, Params, MessageType, State, Function, class_double) ->
+    case els_diagnostics:is_initial_indexing_done() of
+        true ->
+            dispatch(Method, Params, MessageType, State, Function, class_dont_care);
+        _ ->
+            {delay, State}
+    end;
+dispatch(Method, Params, MessageType, State, Function, _) ->
+    ?LOG_DEBUG("Dispatching request [method=~p] [params=~p] [function=~p]", [Method, Params, Function]),
     try
         do_dispatch(Function, Params, State)
     catch
@@ -145,14 +156,18 @@ not_implemented_method(Method, State) ->
     },
     {notification, Method1, Params, State}.
 
--spec method_to_function_name(method_name()) -> atom().
+-spec method_to_function_name(method_name()) -> tuple().
 method_to_function_name(<<"$/", Method/binary>>) ->
     method_to_function_name(<<"$_", Method/binary>>);
 method_to_function_name(Method) ->
     Replaced = string:replace(Method, <<"/">>, <<"_">>, all),
+    Class = case Method of
+        Replaced -> class_single;
+        _ -> class_double
+    end,
     Lower = string:lowercase(Replaced),
     Binary = els_utils:to_binary(Lower),
-    binary_to_atom(Binary, utf8).
+    {binary_to_atom(Binary, utf8), Class}.
 
 %%==============================================================================
 %% Initialize

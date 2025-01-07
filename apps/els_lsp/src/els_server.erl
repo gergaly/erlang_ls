@@ -26,6 +26,7 @@
 %% API
 -export([
     process_requests/1,
+    check_request_queue/0,
     set_io_device/1,
     send_notification/2,
     send_request/2,
@@ -59,7 +60,8 @@
         pending := [{number(), pid()}],
         open_buffers := sets:set(buffer()),
         in_progress := [progress_entry()],
-        in_progress_diagnostics := [diagnostic_entry()]
+        in_progress_diagnostics := [diagnostic_entry()],
+        request_queue := [any()]
     }.
 -type buffer() :: uri().
 -type progress_entry() :: {uri(), pid()}.
@@ -85,6 +87,10 @@ start_link() ->
 -spec process_requests([any()]) -> ok.
 process_requests(Requests) ->
     gen_server:cast(?SERVER, {process_requests, Requests}).
+
+-spec check_request_queue() -> ok.
+check_request_queue() ->
+    gen_server:cast(?SERVER, {check_request_queue}).
 
 -spec set_io_device(atom() | pid()) -> ok.
 set_io_device(IoDevice) ->
@@ -135,7 +141,8 @@ init([]) ->
         pending => [],
         open_buffers => sets:new(),
         in_progress => [],
-        in_progress_diagnostics => []
+        in_progress_diagnostics => [],
+        request_queue => []
     },
     {ok, State}.
 
@@ -154,6 +161,19 @@ handle_call({reset_state}, _From, State) ->
 handle_cast({process_requests, Requests}, State0) ->
     State = lists:foldl(fun handle_request/2, State0, Requests),
     {noreply, State};
+handle_cast({check_request_queue}, #{request_queue := RequestQueue} = State0) ->
+    case {RequestQueue, els_diagnostics:is_initial_indexing_done()} of
+        {[], _} ->
+            {noreply, State0};
+        {Requests, true} ->
+            ?LOG_DEBUG("Processing delayed requests, len=~p", [length(Requests)]),
+            State = lists:foldl(fun handle_request/2, State0#{request_queue => []}, Requests),
+            {noreply, State};
+        {_, false} ->
+            ?LOG_DEBUG("Initial indexing is not done, delay requests, again, len=~p", [length(RequestQueue)]),
+            timer:apply_after(500, els_server, check_request_queue, []),
+            {noreply, State0}
+    end;
 handle_cast({notification, Method, Params}, State) ->
     do_send_notification(Method, Params, State),
     {noreply, State};
@@ -262,7 +282,8 @@ handle_request(
     #{
         pending := Pending,
         in_progress := InProgress,
-        in_progress_diagnostics := InProgressDiagnostics
+        in_progress_diagnostics := InProgressDiagnostics,
+        request_queue := RequestQueue
     } = State0
 ) ->
     Method = maps:get(<<"method">>, Request),
@@ -305,6 +326,12 @@ handle_request(
         {diagnostics, Uri, Jobs, State} ->
             Entry = #{uri => Uri, pending => Jobs, diagnostics => []},
             State#{in_progress_diagnostics => [Entry | InProgressDiagnostics]};
+        {delay, State} ->
+            ?LOG_INFO("Initial indexing is not done, delay request [method=~p]", [Method]),
+            timer:apply_after(500, els_server, check_request_queue, []),
+            State#{
+                request_queue => lists:append(RequestQueue, [Request])
+            };
         {notification, M, P, State} ->
             do_send_notification(M, P, State0),
             State
