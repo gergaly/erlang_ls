@@ -65,6 +65,16 @@ init([]) ->
             type => supervisor
         },
         #{
+            id => els_job_sup,
+            start => {els_job_sup, start_link, []},
+            type => supervisor
+        },
+        #{
+            id => els_job_sch,
+            start => {els_job_sch, start_link, []},
+            shutdown => brutal_kill
+        },
+        #{
             id => els_distribution_sup,
             start => {els_distribution_sup, start_link, []},
             type => supervisor

@@ -11,18 +11,18 @@ for me.
 ### No diagnostics for the first file opened with neovim
 [Issue](https://github.com/erlang-ls/erlang_ls/issues/1575), [Solution](https://github.com/gergaly/erlang_ls/commit/a841136c8e5cd00fbfc68c1461de3d6839895915)
 
+### Speed up initial indexing
+Initial indexing only using 3 processes for the 3 background tasks: OTP,
+Application and Dependencies. I think the jobs should be more refined, maybe
+file based. And start same file indexing as many CPUs are available at the same
+time.
+
 ## Planned improvements
 
 ### Split mode
 Separate escript to interface with the IDE, in my case neovim. And the core
 feature should be a normal erlang node with shell. This way I can use dbg
 commands.
-
-### Speed up initial indexing
-Initial indexing only using 3 processes for the 3 background tasks: OTP,
-Application and Dependencies. I think the jobs should be more refined, maybe
-file based. And start same file indexing as many CPUs are available at the same
-time.
 
 # erlang_ls
 

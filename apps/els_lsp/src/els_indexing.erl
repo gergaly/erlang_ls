@@ -7,6 +7,7 @@
     find_and_deeply_index_file/1,
     index_dir/2,
     start/0,
+    start2/0,
     maybe_start/0,
     ensure_deeply_indexed/1,
     shallow_index/2,
@@ -216,11 +217,96 @@ maybe_start() ->
     IndexingEnabled = els_config:get(indexing_enabled),
     case IndexingEnabled of
         true ->
-            start();
+            %start(),
+            start2();
         false ->
             ?LOG_INFO("Skipping Indexing (disabled via InitOptions)")
     end,
     IndexingEnabled.
+
+-define(OTP_WILDCARD, "lib/*/{src,include}/**/*.{escript,erl,hrl}").
+-define(DEPS_WILDCARD, "*.{escript,erl,hrl}").
+-spec start2() -> ok.
+start2() ->
+    ?LOG_DEBUG("start2"),
+    start2(<<"OTP">>, els_config:get(otp_paths), ?OTP_WILDCARD, [], otp),
+    start2(<<"Applications">>, els_config:get(apps_paths), a, [], app),
+    start2(<<"Deps">>, els_config:get(deps_paths), a, [], deps).
+
+-spec start2(
+    binary(),
+    [string()],
+    [string()],
+    [string()],
+    els_dt_document:source()
+) -> ok.
+start2(Group, Dirs, _Wildcards, Excludes, Source) ->
+    ?LOG_DEBUG("start2 ~p, ~p", [Group, Source]),
+    %{Files, _} = lists:split(200, els_utils:ebertge_file_list(Dirs, Wildcards,
+    %                                                      Excludes)),
+    %Files = els_utils:ebertge_file_list(Dirs, Wildcards, Excludes),
+    Filter = fun(Path) ->
+        Ext = filename:extension(Path),
+        Mem = lists:member(Ext, [".erl", ".hrl", ".escript"]),
+        Excl = lists:all(
+            fun(Elem) -> true =:= Elem end,
+            [string:find(Path, E) =:= nomatch || E <- Excludes]
+        ),
+        Mem andalso Excl
+    end,
+    Files = lists:filter(Filter, lists:append([els_utils:fold_files(D) || D <-
+                                                                          Dirs])),
+
+    Read = fun(FileName) ->
+        BinaryName = els_utils:to_binary(FileName),
+        {ok, Text} = file:read_file(BinaryName),
+        Text
+    end,
+    Start2 = erlang:monotonic_time(millisecond),
+    Cigi = [{F, Read(F)} || F <- Files],
+    End2 = erlang:monotonic_time(millisecond),
+    ?LOG_DEBUG("read: ~p, ~p", [length(Cigi), End2 - Start2]),
+
+    Skip = els_config_indexing:get_skip_generated_files(),
+    SkipTag = els_config_indexing:get_generated_files_tag(),
+    F = fun(FileName) ->
+        BinaryName = els_utils:to_binary(FileName),
+        shallow_index(BinaryName, Skip, SkipTag, Source)
+    end,
+    F2 = fun({FileName, Text}) ->
+        BinaryName = els_utils:to_binary(FileName),
+        shallow_index({BinaryName, Text}, Skip, SkipTag, Source)
+    end,
+    Start = erlang:monotonic_time(millisecond),
+    Config = #{
+        %group => Group,
+        group => <<"Indexing ", Group/binary>>,
+        source => Source,
+        %task => F,
+        task => F2,
+        on_complete =>
+            fun({Succeeded, Skipped, Failed}) ->
+                End = erlang:monotonic_time(millisecond),
+                Duration = End - Start,
+                Event = #{
+                    group => Group,
+                    duration_ms => Duration,
+                    succeeded => Succeeded,
+                    skipped => Skipped,
+                    failed => Failed,
+                    type => <<"indexing">>
+                },
+                ?LOG_INFO(
+                    "Completed indexing for ~s "
+                    "(succeeded: ~p, skipped: ~p, failed: ~p, duration: ~p ms)",
+                    [Group, Succeeded, Skipped, Failed, Duration]
+                ),
+                els_telemetry:send_notification(Event)
+            end
+    },
+    %els_job_sch:new_job({Config, Files}),
+    els_job_sch:new_job({Config, Cigi}),
+    ok.
 
 -spec start() -> ok.
 start() ->
@@ -286,12 +372,26 @@ remove(Uri) ->
 
 -spec shallow_index(binary(), boolean(), string(), els_dt_document:source()) ->
     ok | skipped.
+shallow_index({FullName, Text}, SkipGeneratedFiles, GeneratedFilesTag, Source) ->
+    Uri = els_uri:uri(FullName),
+    %?LOG_DEBUG(
+    %    "Shallow indexing file. [filename=~s] [uri=~s]",
+    %    [FullName, Uri]
+    %),
+    %{ok, Text} = file:read_file(FullName),
+    case SkipGeneratedFiles andalso is_generated_file(Text, GeneratedFilesTag) of
+        true ->
+            ?LOG_DEBUG("Skip indexing for generated file ~p", [Uri]),
+            skipped;
+        false ->
+            shallow_index(Uri, Text, Source)
+    end;
 shallow_index(FullName, SkipGeneratedFiles, GeneratedFilesTag, Source) ->
     Uri = els_uri:uri(FullName),
-    ?LOG_DEBUG(
-        "Shallow indexing file. [filename=~s] [uri=~s]",
-        [FullName, Uri]
-    ),
+    %?LOG_DEBUG(
+    %    "Shallow indexing file. [filename=~s] [uri=~s]",
+    %    [FullName, Uri]
+    %),
     {ok, Text} = file:read_file(FullName),
     case SkipGeneratedFiles andalso is_generated_file(Text, GeneratedFilesTag) of
         true ->
@@ -339,6 +439,7 @@ index_dir(Dir, Skip, SkipTag, Source) ->
             {0, 0, 0}
         ]
     ),
+    %els_shell:send({index_dir, Dir, {Succeeded, Skipped, Failed}}),
     ?LOG_DEBUG(
         "Finished indexing directory. [dir=~s] [time=~p] "
         "[succeeded=~p] [skipped=~p] [failed=~p]",

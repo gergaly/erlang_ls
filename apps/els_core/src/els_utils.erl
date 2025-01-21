@@ -7,6 +7,7 @@
     find_header/1,
     find_module/1,
     find_modules/1,
+    fold_files/1,
     fold_files/4,
     halt/1,
     lookup_document/1,
@@ -211,6 +212,10 @@ macro_string_to_term(Value) ->
 %%
 %% Applies function F to each file and the accumulator,
 %% skipping all symlinks.
+-spec fold_files(path()) -> list().
+fold_files(Dir) ->
+    fold_files(fun(Path, Acc) -> [Path|Acc] end, no_filter, Dir, []).
+
 -spec fold_files(function(), function(), path(), any()) -> any().
 fold_files(F, Filter, Dir, Acc) ->
     do_fold_dir(F, Filter, Dir, Acc).
@@ -364,11 +369,13 @@ do_fold_files(F, Filter, Dir, [File | Rest], Acc0) ->
 
 -spec do_fold_file(function(), function(), path(), any()) ->
     any().
-do_fold_file(F, Filter, Path, Acc) ->
+do_fold_file(F, Filter, Path, Acc) when is_function(Filter) ->
     case Filter(Path) of
         true -> F(Path, Acc);
         false -> Acc
-    end.
+    end;
+do_fold_file(F, _, Path, Acc) ->
+    F(Path, Acc).
 
 -spec do_fold_dir(function(), function(), path(), any()) ->
     any().
