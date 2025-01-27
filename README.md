@@ -1,7 +1,7 @@
 # Improved erlang_ls
 
 Remember, all these changes are subjective. I think I need them. That's enough
-for me.
+for me. My [investigation](./investigation.md)
 
 ## Already done
 
@@ -17,12 +17,12 @@ Application and Dependencies. I think the jobs should be more refined, maybe
 file based. And start same file indexing as many CPUs are available at the same
 time.
 
-## Planned improvements
-
 ### Split mode
 Separate escript to interface with the IDE, in my case neovim. And the core
 feature should be a normal erlang node with shell. This way I can use dbg
 commands.
+
+## Planned improvements
 
 # erlang_ls
 
