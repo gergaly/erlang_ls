@@ -1,0 +1,11 @@
+{application, els_fake, [
+    {description, "Erlang LS Fake"},
+    {vsn, git},
+    {registered, []},
+    {applications, [kernel, stdlib, getopt]},
+    {env, []},
+    {modules, [els_utils, els_stdio]},
+
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+]}.

@@ -103,6 +103,12 @@ handle_request({exit, #{status := Status}}) ->
             shutdown -> 0;
             _ -> 1
         end,
+    case global:whereis_name(els_fake) of
+        Pid when is_pid(Pid) ->
+            ?LOG_INFO("Sending exit request to els_fake"),
+            gen_server:cast(Pid, {exit, ExitCode});
+        _ -> ok
+    end,
     els_utils:halt(ExitCode),
     {response, null}.
 

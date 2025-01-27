@@ -61,7 +61,8 @@
         open_buffers := sets:set(buffer()),
         in_progress := [progress_entry()],
         in_progress_diagnostics := [diagnostic_entry()],
-        request_queue := [any()]
+        request_queue := [any()],
+        stdio_pid := pid() | undefined
     }.
 -type buffer() :: uri().
 -type progress_entry() :: {uri(), pid()}.
@@ -77,11 +78,13 @@
 %%==============================================================================
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-    {ok, Pid} = gen_server:start_link({local, ?SERVER}, ?MODULE, [], []),
+    FakePid = global:whereis_name(els_fake),
+    {ok, Pid} = gen_server:start_link({local, ?SERVER}, ?MODULE, [FakePid], []),
     Cb = fun(Requests) ->
         gen_server:cast(Pid, {process_requests, Requests})
     end,
-    {ok, _} = els_stdio:start_listener(Cb),
+    ?LOG_DEBUG("FakePid: ~p", [FakePid]),
+    {ok, _} = els_stdio:start_listener(Cb, FakePid, Pid),
     {ok, Pid}.
 
 -spec process_requests([any()]) -> ok.
@@ -128,8 +131,8 @@ reset_state() ->
 %%==============================================================================
 %% gen_server callbacks
 %%==============================================================================
--spec init([]) -> {ok, state()}.
-init([]) ->
+-spec init([pid()|undefined]) -> {ok, state()}.
+init([FakePid]) ->
     %% Ensure the terminate function is called on shutdown, allowing the
     %% job to clean up.
     process_flag(trap_exit, true),
@@ -142,7 +145,8 @@ init([]) ->
         open_buffers => sets:new(),
         in_progress => [],
         in_progress_diagnostics => [],
-        request_queue => []
+        request_queue => [],
+        stdio_pid => FakePid
     },
     {ok, State}.
 
@@ -390,8 +394,8 @@ do_send_response(Job, Result, State0) ->
     end.
 
 -spec send(binary(), state()) -> ok.
-send(Payload, #{io_device := IoDevice}) ->
-    els_stdio:send(IoDevice, Payload).
+send(Payload, #{io_device := IoDevice, stdio_pid := StdioPid}) ->
+    els_stdio:send(IoDevice, StdioPid, Payload).
 
 -spec find_entry(pid(), [els_server:diagnostic_entry()]) ->
     {ok, {els_server:diagnostic_entry(), [els_server:diagnostic_entry()]}}

@@ -1,0 +1,17 @@
+{application, els_shell, [
+    {description, "Erlang LS - shell"},
+    {vsn, git},
+    {registered, []},
+    {mod, {els_shell_app, []}},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {optional_applications, []},
+    {env, []},
+    {modules, [els_fake]},
+    {maintainers, []},
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+]}.
+
