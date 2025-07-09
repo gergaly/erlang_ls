@@ -230,7 +230,7 @@ maybe_start() ->
 start2() ->
     ?LOG_DEBUG("start2"),
     start2(<<"OTP">>, els_config:get(otp_paths), ?OTP_WILDCARD, [], otp),
-    start2(<<"Applications">>, els_config:get(apps_paths), a, [], app),
+    start2(<<"Applications">>, els_config:get(apps_paths), a, els_config:get(excludes), app),
     start2(<<"Deps">>, els_config:get(deps_paths), a, [], deps).
 
 -spec start2(
